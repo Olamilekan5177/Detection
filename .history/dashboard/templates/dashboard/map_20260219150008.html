@@ -1,0 +1,477 @@
+{% extends 'dashboard/base.html' %} {% load static %} {% block title %}Map View
+- Oil Spill Detection{% endblock %} {% block content %}
+<style>
+  body, .page-container {
+    background: linear-gradient(135deg, #f8fafb 0%, #eef2f5 100%);
+  }
+
+  .map-container {
+    height: 700px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    margin: 30px 0;
+    background: #ffffff;
+    border: 2px solid #e5e7eb;
+    overflow: hidden;
+  }
+
+  .filter-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  }
+
+  .filter-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    align-items: flex-end;
+  }
+
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .filter-group label {
+    color: #1f2937;
+    font-weight: 700;
+    font-size: 0.95em;
+    letter-spacing: 0.5px;
+  }
+
+  .filter-group input[type="range"],
+  .filter-group select,
+  .filter-group input[type="text"] {
+    padding: 10px 14px;
+    border: 2px solid #d1d5db;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #1f2937;
+    font-size: 0.95em;
+    transition: all 0.3s ease;
+  }
+
+  .filter-group input[type="range"] {
+    padding: 8px;
+    accent-color: #3b82f6;
+  }
+
+  .filter-group input:focus,
+  .filter-group select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background: #f0f9ff;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .btn-action {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: all 0.3s;
+    font-size: 0.98em;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+
+  .btn-action:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+  }
+
+  .btn-action.secondary {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+
+  .btn-action.secondary:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+  }
+
+  .confidence-value {
+    color: #3b82f6;
+    font-weight: 700;
+    font-size: 1.1em;
+  }
+
+  .stats {
+    color: #374151;
+    text-align: center;
+    margin-top: 20px;
+    font-size: 1em;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .page-title {
+    color: #111827;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    font-size: 2.2em;
+    font-weight: 800;
+    letter-spacing: -1px;
+  }
+</style>
+
+<div style="color: #1f2937; padding: 20px 0;">
+  <div class="page-title">🗺️ Oil Spill Detection Map</div>
+
+  <!-- Filters -->
+  <div class="filter-card">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label>📊 Severity Level</label>
+        <select id="severityFilter">
+          <option value="">All Severities</option>
+          <option value="LOW">⭕ Low</option>
+          <option value="MEDIUM">🟡 Medium</option>
+          <option value="HIGH">🔴 High</option>
+          <option value="CRITICAL">⛔ Critical</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label
+          >📈 Min Confidence:
+          <span class="confidence-value" id="confidenceValue">50%</span></label
+        >
+        <input
+          type="range"
+          id="confidenceFilter"
+          min="0"
+          max="100"
+          value="50"
+          step="5"
+        />
+      </div>
+
+      <div class="filter-group">
+        <label
+          style="display: flex; align-items: center; gap: 10px; margin-top: 8px; color: #1f2937; cursor: pointer;"
+        >
+          <input
+            type="checkbox"
+            id="verifiedFilter"
+            style="width: 18px; height: 18px; cursor: pointer; accent-color: #3b82f6;"
+          />
+          <span style="font-weight: 600;">✅ Verified Only</span>
+        </label>
+      </div>
+
+      <div style="display: flex; gap: 12px">
+        <button class="btn-action" onclick="applyFilters()">
+          🔍 Apply Filters
+        </button>
+        <button class="btn-action secondary" onclick="refreshData()">
+          🔄 Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Container -->
+  <div class="map-container" id="map"></div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <p>
+      📍 Showing <strong style="color: #3b82f6; font-size: 1.1em;"><span id="detectionCount">0</span></strong> detections on the map
+    </p>
+  </div>
+</div>
+
+<!-- Modal for Detection Details -->
+<div
+  id="detectionModal"
+  style="
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+  "
+>
+  <div
+    style="
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+      color: #1f2937;
+      padding: 30px;
+      border-radius: 15px;
+      max-width: 500px;
+      width: 90%;
+      border: 2px solid #e5e7eb;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    "
+  >
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      "
+    >
+      <h3 style="margin: 0; color: #111827; font-size: 1.3em; font-weight: 700;">Detection Details</h3>
+      <button
+        onclick="closeModal()"
+        style="
+          background: none;
+          border: none;
+          color: #6b7280;
+          font-size: 28px;
+          cursor: pointer;
+          transition: color 0.2s;
+        "
+        onmouseover="this.style.color='#1f2937'"
+        onmouseout="this.style.color='#6b7280'"
+      >
+        ×
+      </button>
+    </div>
+    <div id="detectionInfo"></div>
+  </div>
+</div>
+
+{% endblock %} {% block extra_js %}
+<script>
+  console.log("Map page loading...");
+
+  // Initialize map once Leaflet is ready
+  function initializeMap() {
+    console.log("Initializing Leaflet map...");
+
+    // Center on Niger Delta region (Nigeria)
+    const center = [5.0, 5.5];  // Latitude, Longitude
+    const zoom = 8;
+    
+    const map = L.map("map", {
+      preferCanvas: true,
+      zoomControl: true,
+      attributionControl: true
+    }).setView(center, zoom);
+
+    // Add OpenStreetMap tile layer with better styling
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '© OpenStreetMap contributors | Oil Spill Detection System',
+      maxZoom: 19,
+      minZoom: 2,
+      fadeAnimation: true,
+      className: 'map-tiles'
+    }).addTo(map);
+
+    // Layer for detection markers
+    let markers = L.layerGroup().addTo(map);
+
+    // Severity color mapping
+    const severityColors = {
+      LOW: "#22c55e",
+      MEDIUM: "#f59e0b",
+      HIGH: "#ef4444",
+      CRITICAL: "#7c2d12",
+    };
+
+    // Update confidence display
+    document
+      .getElementById("confidenceFilter")
+      .addEventListener("input", function () {
+        document.getElementById("confidenceValue").textContent =
+          this.value + "%";
+      });
+
+    // Load detections from API
+    async function loadDetections(filters = {}) {
+      try {
+        console.log("Loading detections with filters:", filters);
+
+        // Build API URL with filters
+        let url = "/api/detections/?";
+        const params = new URLSearchParams();
+
+        if (filters.severity) params.append("severity", filters.severity);
+        if (filters.min_confidence)
+          params.append("min_confidence", filters.min_confidence);
+        if (filters.verified) params.append("verified", filters.verified);
+
+        url += params.toString();
+        console.log("API URL:", url);
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          console.error("API error:", response.status, response.statusText);
+          document.getElementById("detectionCount").textContent = "0";
+          markers.clearLayers();
+          return;
+        }
+
+        const data = await response.json();
+        console.log("API response:", data);
+
+        // Extract detections array
+        const detections = Array.isArray(data)
+          ? data
+          : data.results || data.features || [];
+        console.log("Extracted detections:", detections.length);
+
+        // Clear existing markers
+        markers.clearLayers();
+
+        // Add markers for each detection
+        let markerCount = 0;
+        detections.forEach((detection, index) => {
+          try {
+            // Validate location
+            if (
+              !detection.location ||
+              !detection.location.coordinates ||
+              detection.location.coordinates.length < 2
+            ) {
+              console.warn("Detection " + index + " missing valid coordinates");
+              return;
+            }
+
+            const coords = detection.location.coordinates;
+            const lat = parseFloat(coords[1]);
+            const lon = parseFloat(coords[0]);
+
+            if (isNaN(lat) || isNaN(lon)) {
+              console.warn("Invalid coordinates for detection " + index);
+              return;
+            }
+
+            const severity = detection.severity || "MEDIUM";
+            const confidence = (detection.confidence_score * 100).toFixed(1);
+            const area = (detection.area_size || 0).toFixed(2);
+            const color = severityColors[severity] || "#999999";
+
+            // Create custom marker icon
+            const icon = L.divIcon({
+              className: "oil-spill-marker",
+              html:
+                '<div style="background-color: ' +
+                color +
+                '; width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 20px; line-height: 40px; text-align: center;">🛢️</div>',
+              iconSize: [40, 40],
+              iconAnchor: [20, 20],
+              popupAnchor: [0, -20],
+            });
+
+            // Create popup content
+            const popupContent =
+              '<div style="font-family: Arial, sans-serif; font-size: 13px;"><h5 style="margin: 0 0 10px 0; color: #333;">Oil Spill Detection</h5><table style="width: 100%; line-height: 1.8;"><tr><td style="color: #666;"><strong>ID:</strong></td><td>#' +
+              detection.id +
+              '</td></tr><tr><td style="color: #666;"><strong>Severity:</strong></td><td><span style="background: ' +
+              color +
+              '; color: white; padding: 2px 6px; border-radius: 3px;">' +
+              severity +
+              '</span></td></tr><tr><td style="color: #666;"><strong>Confidence:</strong></td><td><strong>' +
+              confidence +
+              '%</strong></td></tr><tr><td style="color: #666;"><strong>Area:</strong></td><td>' +
+              area +
+              ' km²</td></tr><tr><td style="color: #666;"><strong>Lat:</strong></td><td>' +
+              lat.toFixed(6) +
+              '</td></tr><tr><td style="color: #666;"><strong>Lon:</strong></td><td>' +
+              lon.toFixed(6) +
+              '</td></tr><tr><td style="color: #666;"><strong>Date:</strong></td><td>' +
+              new Date(detection.detection_date).toLocaleString() +
+              '</td></tr><tr><td style="color: #666;"><strong>Verified:</strong></td><td>' +
+              (detection.verified ? "✓ Yes" : "○ No") +
+              "</td></tr></table></div>";
+
+            // Create and add marker
+            const marker = L.marker([lat, lon], { icon })
+              .bindPopup(popupContent)
+              .addTo(markers);
+
+            markerCount++;
+          } catch (error) {
+            console.error("Error processing detection " + index + ":", error);
+          }
+        });
+
+        // Update detection count
+        document.getElementById("detectionCount").textContent = markerCount;
+
+        // Fit map to markers if any exist
+        if (markerCount > 0) {
+          try {
+            const bounds = markers.getBounds();
+            if (bounds.isValid()) {
+              map.fitBounds(bounds, { padding: [50, 50] });
+              console.log("Map fitted to bounds");
+            }
+          } catch (e) {
+            console.warn("Could not fit map bounds:", e);
+          }
+        } else {
+          map.setView([0, 0], 2);
+        }
+
+        console.log("Map update complete: " + markerCount + " markers added");
+      } catch (error) {
+        console.error("Error loading detections:", error);
+        document.getElementById("detectionCount").textContent = "0";
+      }
+    }
+
+    // Apply filters
+    window.applyFilters = function () {
+      const filters = {};
+
+      const severity = document.getElementById("severityFilter").value;
+      if (severity) filters.severity = severity;
+
+      const confidence = document.getElementById("confidenceFilter").value;
+      if (confidence) filters.min_confidence = (confidence / 100).toFixed(2);
+
+      const verified = document.getElementById("verifiedFilter").checked;
+      if (verified) filters.verified = "true";
+
+      console.log("Applying filters:", filters);
+      loadDetections(filters);
+    };
+
+    // Refresh data
+    window.refreshData = function () {
+      console.log("Refreshing data...");
+      window.applyFilters();
+    };
+
+    // Close modal
+    window.closeModal = function () {
+      document.getElementById("detectionModal").style.display = "none";
+    };
+
+    // Initial load
+    console.log("Performing initial load...");
+    loadDetections();
+  }
+
+  // Initialize map when DOM is ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeMap);
+  } else {
+    initializeMap();
+  }
+</script>
+{% endblock %}

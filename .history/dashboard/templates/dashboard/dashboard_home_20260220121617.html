@@ -1,0 +1,306 @@
+{% extends "dashboard/base.html" %} 
+{% load static %} 
+{% load math_filters %} 
+{% block title %}Oil Spill Detection Dashboard{% endblock %} 
+{% block content %}
+<div class="container-fluid p-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <h1>Oil Spill Detection Dashboard</h1>
+      <p class="text-muted">
+        Real-time monitoring of Sentinel-1 SAR satellite data
+      </p>
+    </div>
+    <div class="col-md-4 text-right">
+      <span class="badge badge-success">LIVE</span>
+      <small class="text-muted"
+        >Last update: {{ system_status.last_update }}</small
+      >
+    </div>
+  </div>
+
+  <!-- System Status Cards -->
+  <div class="row mb-4">
+    <!-- Sentinel Hub Status -->
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <h6 class="card-title">Sentinel Hub</h6>
+          {% if system_status.sentinel_hub.connected %}
+          <p class="h4 text-success">✓ Connected</p>
+          <small class="text-muted"
+            >{{ system_status.sentinel_hub.client }}</small
+          >
+          {% else %}
+          <p class="h4 text-danger">✗ Offline</p>
+          <small class="text-muted"
+            >{{ system_status.sentinel_hub.error }}</small
+          >
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Status -->
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <h6 class="card-title">ML Model</h6>
+          {% if system_status.model.loaded %}
+          <p class="h4 text-success">✓ Ready</p>
+          <small class="text-muted">
+            Accuracy: {{ system_status.model.accuracy }}<br />
+            Size: {{ system_status.model.size_mb }}MB
+          </small>
+          {% else %}
+          <p class="h4 text-danger">✗ Not Found</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Monitoring Status -->
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <h6 class="card-title">Monitoring</h6>
+          {% if system_status.monitoring.running %}
+          <p class="h4 text-success">✓ Running</p>
+          <small class="text-muted">
+            Runs: {{ system_status.monitoring.run_count }}<br />
+            Errors: {{ system_status.monitoring.errors }}
+          </small>
+          {% else %}
+          <p class="h4 text-warning">⚠ Idle</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Regions -->
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <h6 class="card-title">Active Regions</h6>
+          <p class="h4">{{ active_regions|length }}</p>
+          <small class="text-muted">Monitoring regions configured</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Row -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card bg-light">
+        <div class="card-body">
+          <p class="card-title text-muted">Total Detections</p>
+          <h3 class="card-text">{{ stats.total_detections }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-light">
+        <div class="card-body">
+          <p class="card-title text-muted">This Week</p>
+          <h3 class="card-text">{{ stats.this_week }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-light">
+        <div class="card-body">
+          <p class="card-title text-muted">Today</p>
+          <h3 class="card-text">{{ stats.today }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-light">
+        <div class="card-body">
+          <p class="card-title text-muted">Avg Confidence</p>
+          <h3 class="card-text">
+            {{ stats.average_confidence|floatformat:1 }}%
+          </h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Row -->
+  <div class="row">
+    <!-- Recent Detections -->
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Recent Detections</h5>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Region</th>
+                <th>Time</th>
+                <th>Confidence</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for detection in recent_detections %}
+              <tr>
+                <td>{{ detection.region|default:"Unknown" }}</td>
+                <td>
+                  <small>{{ detection.timestamp|truncatewords:3 }}</small>
+                </td>
+                <td>
+                  {% widthratio detection.confidence 1 100 as conf_pct %} {% if
+                  conf_pct > 80 %}
+                  <span class="badge badge-danger">{{ conf_pct }}%</span>
+                  {% elif conf_pct > 50 %}
+                  <span class="badge badge-warning">{{ conf_pct }}%</span>
+                  {% else %}
+                  <span class="badge badge-info">{{ conf_pct }}%</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <a
+                    href="{% url 'detection-details' detection.id %}"
+                    class="btn btn-xs btn-info"
+                    >View</a
+                  >
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-muted">
+                  No detections yet
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="card-footer">
+          <a href="{% url 'detection-results' %}" class="btn btn-sm btn-primary"
+            >View All</a
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Monitoring Regions -->
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Monitoring Regions</h5>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Region</th>
+                <th>Status</th>
+                <th>Detections</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for region in active_regions %}
+              <tr>
+                <td>{{ region.name }}</td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td>
+                  <span class="badge badge-secondary"
+                    >{{ region.detections|default:"0" }}</span
+                  >
+                </td>
+                <td>
+                  <a
+                    href="{% url 'region-details' region.name %}"
+                    class="btn btn-xs btn-info"
+                    >Edit</a
+                  >
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-muted">
+                  No active regions
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="card-footer">
+          <a
+            href="{% url 'regions-management' %}"
+            class="btn btn-sm btn-primary"
+            >Manage Regions</a
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Health Row -->
+  <div class="row mt-4">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">System Health</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3">
+              <div class="progress mb-2">
+                <div
+                  class="progress-bar"
+                  style="width: {{ health.memory_usage }}%"
+                >
+                  CPU: {{ health.memory_usage }}%
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="progress mb-2">
+                <div
+                  class="progress-bar bg-warning"
+                  style="width: {{ health.disk_usage }}%"
+                >
+                  Disk: {{ health.disk_usage }}%
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <p class="text-muted mb-0">
+                <small>Uptime: {{ health.uptime }}</small>
+              </p>
+            </div>
+            <div class="col-md-3">
+              <a href="{% url 'statistics' %}" class="btn btn-sm btn-primary"
+                >View Stats</a
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+  }
+  .badge {
+    padding: 0.35rem 0.65rem;
+  }
+  .btn-xs {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+</style>
+{% endblock %}

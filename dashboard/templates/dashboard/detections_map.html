@@ -1,0 +1,264 @@
+{% extends "dashboard/base.html" %} {% load static %} {% load math_filters %} {%
+block title %}Detection Map{% endblock %} {% block extra_css %}
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+<style>
+  #map {
+    height: 600px;
+    width: 100%;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 300px;
+    max-height: 580px;
+    background: white;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    overflow-y: auto;
+    z-index: 1000;
+    padding: 15px;
+  }
+
+  .detection-item {
+    border-left: 3px solid #dc3545;
+    padding: 10px 0 10px 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .detection-item:hover {
+    background-color: #f5f5f5;
+  }
+
+  .detection-item.high-confidence {
+    border-left-color: #dc3545;
+  }
+
+  .detection-item.medium-confidence {
+    border-left-color: #fd7e14;
+  }
+
+  .detection-item.low-confidence {
+    border-left-color: #0dcaf0;
+  }
+
+  .marker-icon-high {
+    filter: hue-rotate(0deg) saturate(2);
+  }
+
+  .marker-icon-medium {
+    filter: hue-rotate(30deg) saturate(1.5);
+  }
+</style>
+{% endblock %} {% block content %}
+<div class="container-fluid p-4">
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <h1>Oil Spill Detection Map</h1>
+      <p class="text-muted">
+        Geographic visualization of detected oil spills from Sentinel-1 SAR data
+      </p>
+    </div>
+    <div class="col-md-4 text-right">
+      <div class="btn-group" role="group">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary"
+          onclick="filterByConfidence('all')"
+        >
+          All ({{ detections|length }})
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-danger"
+          onclick="filterByConfidence('high')"
+        >
+          High
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-warning"
+          onclick="filterByConfidence('medium')"
+        >
+          Medium
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Container -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div style="position: relative">
+        <div id="map"></div>
+        <div class="sidebar">
+          <h6 class="mb-3">
+            Detections (<span id="detection-count">{{ detections|length }}</span
+            >)
+          </h6>
+          <div id="detections-list">
+            {% for detection in detections %}
+            <div
+              class="detection-item {% if detection.confidence > 0.8 %}high-confidence{% elif detection.confidence > 0.5 %}medium-confidence{% else %}low-confidence{% endif %}"
+              onclick="focusDetection('{{ detection.id }}')"
+            >
+              <div class="font-weight-bold">
+                {{ detection.region|default:"Unknown" }}
+              </div>
+              <small class="text-muted">
+                Lat: {{ detection.latitude|floatformat:3 }}<br />
+                Lon: {{ detection.longitude|floatformat:3 }}<br />
+                Confidence:
+                <strong>{{ detection.confidence|floatformat:1 }}%</strong>
+              </small>
+              <div class="mt-2">
+                <small class="text-muted"
+                  >{{ detection.timestamp|truncatewords:3 }}</small
+                >
+              </div>
+            </div>
+            {% empty %}
+            <div class="text-muted text-center py-4">
+              <p>No detections available</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Row -->
+  <div class="row">
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted">Total Detections</h6>
+          <h3>{{ detections|length }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted">High Confidence</h6>
+          <h3>{% load math_filters %}{{ detections|length }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted">Regions Covered</h6>
+          <h3>{{ regions_covered|length }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted">Avg. Confidence</h6>
+          <h3>{{ avg_confidence|floatformat:0 }}%</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // Initialize map
+  const map = L.map('map').setView([{{ map_center|safe }}], {{ map_zoom }});
+
+  // Add tile layer
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+  }).addTo(map);
+
+  // Add detections as markers
+  const detections = {{ geojson|safe }};
+  const markers = {};
+
+  detections.features.forEach(feature => {
+      const coords = feature.geometry.coordinates;
+      const props = feature.properties;
+      const confidence = props.confidence;
+
+      // Determine marker color based on confidence
+      let markerColor = '#0dcaf0'; // low
+      if (confidence > 0.8) markerColor = '#dc3545'; // high
+      else if (confidence > 0.5) markerColor = '#fd7e14'; // medium
+
+      // Create marker
+      const marker = L.circleMarker([coords[1], coords[0]], {
+          radius: 8 + (confidence * 5),
+          fillColor: markerColor,
+          color: '#000',
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
+      }).addTo(map);
+
+      // Popup with detection info
+      const popup = `
+          <div class="card" style="width: 250px;">
+              <div class="card-body">
+                  <h6 class="card-title">${props.region}</h6>
+                  <p class="card-text">
+                      <strong>Confidence:</strong> ${(confidence * 100).toFixed(1)}%<br>
+                      <strong>Severity:</strong> <span class="badge badge-${confidence > 0.8 ? 'danger' : 'warning'}">${props.severity}</span><br>
+                      <strong>Time:</strong> ${props.timestamp}
+                  </p>
+                  <a href="/detection/${props.id}/" class="btn btn-sm btn-primary">Details</a>
+              </div>
+          </div>
+      `;
+
+      marker.bindPopup(popup);
+      markers[props.id] = marker;
+  });
+
+  // Filter function
+  function filterByConfidence(level) {
+      detections.features.forEach(feature => {
+          const markers_item = markers[feature.properties.id];
+          if (!markers_item) return;
+
+          if (level === 'all') {
+              map.addLayer(markers_item);
+          } else if (level === 'high' && feature.properties.confidence > 0.8) {
+              map.addLayer(markers_item);
+          } else if (level === 'medium' && feature.properties.confidence > 0.5) {
+              map.addLayer(markers_item);
+          } else {
+              map.removeLayer(markers_item);
+          }
+      });
+  }
+
+  // Focus on detection
+  function focusDetection(detectionId) {
+      const marker = markers[detectionId];
+      if (marker) {
+          map.setView(marker.getLatLng(), 10);
+          marker.openPopup();
+
+          // Highlight in sidebar
+          document.querySelectorAll('.detection-item').forEach(el => {
+              el.style.backgroundColor = '';
+          });
+          event.target.closest('.detection-item').style.backgroundColor = '#f5f5f5';
+      }
+  }
+</script>
+
+{% endblock %}

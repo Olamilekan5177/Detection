@@ -1,0 +1,464 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+{% load math_filters %}
+
+{% block title %}Map View - Oil Spill Detection{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-map-marked-alt"></i> Oil Spill Detection Map</h1>
+  <p>Interactive satellite monitoring and detection tracking</p>
+</div>
+
+<style>
+  .map-controls {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .filter-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    align-items: flex-end;
+  }
+
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .filter-group label {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.9em;
+  }
+
+  .filter-group select,
+  .filter-group input[type="range"] {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+
+  .filter-group input[type="range"] {
+    padding: 5px;
+  }
+
+  .filter-group input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+
+  .btn-action {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s;
+    font-size: 0.9em;
+  }
+
+  .btn-action:hover {
+    background: linear-gradient(135deg, #0052a3 0%, #003d7a 100%);
+    transform: translateY(-2px);
+  }
+
+  .btn-action.secondary {
+    background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+  }
+
+  .btn-action.secondary:hover {
+    background: linear-gradient(135deg, #1e7e34 0%, #155724 100%);
+  }
+
+  .map-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #map {
+    width: 100%;
+    height: 600px;
+    z-index: 1;
+  }
+
+  .map-stats {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+
+  .detection-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .detection-modal.show {
+    display: flex;
+  }
+
+  .modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1.2em;
+    color: #333;
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #999;
+  }
+
+  .modal-close:hover {
+    color: #333;
+  }
+</style>
+
+<!-- Map Controls -->
+<div class="map-controls">
+  <div class="filter-row">
+    <div class="filter-group">
+      <label>📊 Severity Level</label>
+      <select id="severityFilter">
+        <option value="">All Severities</option>
+        <option value="LOW">⭕ Low</option>
+        <option value="MEDIUM">🟡 Medium</option>
+        <option value="HIGH">🔴 High</option>
+        <option value="CRITICAL">⛔ Critical</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>📈 Min Confidence: <span id="confidenceValue">50%</span></label>
+      <input
+        type="range"
+        id="confidenceFilter"
+        min="0"
+        max="100"
+        value="50"
+        step="5"
+      />
+    </div>
+
+    <div class="filter-group">
+      <label style="display: flex; align-items: center; gap: 10px">
+        <input type="checkbox" id="verifiedFilter" />
+        <span>✅ Verified Only</span>
+      </label>
+    </div>
+
+    <div style="display: flex; gap: 10px">
+      <button class="btn-action" onclick="applyFilters()">
+        🔍 Apply Filters
+      </button>
+      <button class="btn-action secondary" onclick="refreshData()">
+        🔄 Refresh
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Map Container -->
+<div class="map-container">
+  <div id="map"></div>
+</div>
+
+<!-- Statistics -->
+<div class="map-stats">
+  <p>📍 Showing <strong id="detectionCount">0</strong> detections on the map</p>
+</div>
+
+<!-- Detection Details Modal -->
+<div id="detectionModal" class="detection-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Detection Details</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div id="detectionInfo"></div>
+  </div>
+</div>
+
+{% endblock %} {% block extra_js %}
+<script>
+  console.log("Map page loading...");
+
+  // Initialize map once Leaflet is ready
+  function initializeMap() {
+    console.log("Initializing Leaflet map...");
+
+    // Center on Niger Delta region (Nigeria)
+    const center = [5.0, 5.5]; // Latitude, Longitude
+    const zoom = 8;
+
+    const map = L.map("map", {
+      preferCanvas: true,
+      zoomControl: true,
+      attributionControl: true,
+    }).setView(center, zoom);
+
+    // Add OpenStreetMap tile layer with better styling
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors | Oil Spill Detection System",
+      maxZoom: 19,
+      minZoom: 2,
+      fadeAnimation: true,
+      className: "map-tiles",
+    }).addTo(map);
+
+    // Layer for detection markers
+    let markers = L.layerGroup().addTo(map);
+
+    // Severity color mapping
+    const severityColors = {
+      LOW: "#22c55e",
+      MEDIUM: "#f59e0b",
+      HIGH: "#ef4444",
+      CRITICAL: "#7c2d12",
+    };
+
+    // Update confidence display
+    document
+      .getElementById("confidenceFilter")
+      .addEventListener("input", function () {
+        document.getElementById("confidenceValue").textContent =
+          this.value + "%";
+      });
+
+    // Load detections from API
+    async function loadDetections(filters = {}) {
+      try {
+        console.log("Loading detections with filters:", filters);
+
+        // Build API URL with filters
+        let url = "/api/detections/?";
+        const params = new URLSearchParams();
+
+        if (filters.severity) params.append("severity", filters.severity);
+        if (filters.min_confidence)
+          params.append("min_confidence", filters.min_confidence);
+        if (filters.verified) params.append("verified", filters.verified);
+
+        url += params.toString();
+        console.log("API URL:", url);
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          console.error("API error:", response.status, response.statusText);
+          document.getElementById("detectionCount").textContent = "0";
+          markers.clearLayers();
+          return;
+        }
+
+        const data = await response.json();
+        console.log("API response:", data);
+
+        // Extract detections array
+        const detections = Array.isArray(data)
+          ? data
+          : data.results || data.features || [];
+        console.log("Extracted detections:", detections.length);
+
+        // Clear existing markers
+        markers.clearLayers();
+
+        // Add markers for each detection
+        let markerCount = 0;
+        detections.forEach((detection, index) => {
+          try {
+            // Validate location
+            if (
+              !detection.location ||
+              !detection.location.coordinates ||
+              detection.location.coordinates.length < 2
+            ) {
+              console.warn("Detection " + index + " missing valid coordinates");
+              return;
+            }
+
+            const coords = detection.location.coordinates;
+            const lat = parseFloat(coords[1]);
+            const lon = parseFloat(coords[0]);
+
+            if (isNaN(lat) || isNaN(lon)) {
+              console.warn("Invalid coordinates for detection " + index);
+              return;
+            }
+
+            const severity = detection.severity || "MEDIUM";
+            const confidence = (detection.confidence_score * 100).toFixed(1);
+            const area = (detection.area_size || 0).toFixed(2);
+            const color = severityColors[severity] || "#999999";
+
+            // Create custom marker icon
+            const icon = L.divIcon({
+              className: "oil-spill-marker",
+              html:
+                '<div style="background-color: ' +
+                color +
+                '; width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 20px; line-height: 40px; text-align: center;">🛢️</div>',
+              iconSize: [40, 40],
+              iconAnchor: [20, 20],
+              popupAnchor: [0, -20],
+            });
+
+            // Create popup content with improved styling
+            const popupContent =
+              '<div style="font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; font-size: 14px; color: #1f2937; min-width: 280px;"><div style="background: linear-gradient(135deg, ' +
+              color +
+              " 0%, rgba(" +
+              hexToRgb(color) +
+              ', 0.8) 100%); color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -8px -8px 12px -8px; font-weight: 700; font-size: 15px;">🛢️ Oil Spill Detection</div><table style="width: 100%; border-collapse: collapse;"><tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; font-weight: 600; color: #111827; width: 40%;">ID:</td><td style="padding: 8px 0; color: #374151; text-align: right;">#' +
+              detection.id +
+              '</td></tr><tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; font-weight: 600; color: #111827;">Severity:</td><td style="padding: 8px 0; text-align: right;"><span style="background: ' +
+              color +
+              '; color: white; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 12px;">' +
+              severity +
+              '</span></td></tr><tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; font-weight: 600; color: #111827;">Confidence:</td><td style="padding: 8px 0; text-align: right; color: #3b82f6; font-weight: 700;">' +
+              confidence +
+              '%</td></tr><tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; font-weight: 600; color: #111827;">Area:</td><td style="padding: 8px 0; text-align: right; color: #374151;">' +
+              area +
+              ' km²</td></tr><tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; font-weight: 600; color: #111827;">Lat:</td><td style="padding: 8px 0; text-align: right; font-family: monospace; color: #374151; font-size: 12px;">' +
+              lat.toFixed(6) +
+              '</td></tr><tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; font-weight: 600; color: #111827;">Lon:</td><td style="padding: 8px 0; text-align: right; font-family: monospace; color: #374151; font-size: 12px;">' +
+              lon.toFixed(6) +
+              '</td></tr><tr style="border-bottom: 1px solid #e5e7eb;"><td style="padding: 8px 0; font-weight: 600; color: #111827;">Date:</td><td style="padding: 8px 0; text-align: right; color: #374151; font-size: 13px;">' +
+              new Date(detection.detection_date).toLocaleDateString() +
+              '</td></tr><tr><td style="padding: 8px 0; font-weight: 600; color: #111827;">Verified:</td><td style="padding: 8px 0; text-align: right; color: ' +
+              (detection.verified ? "#10b981" : "#ef4444") +
+              '; font-weight: 600;">' +
+              (detection.verified ? "✓ Yes" : "○ No") +
+              "</td></tr></table></div>";
+
+            // Helper function to convert hex to rgb
+            function hexToRgb(hex) {
+              const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
+                hex,
+              );
+              return result
+                ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+                : "0, 0, 0";
+            }
+
+            // Create and add marker
+            const marker = L.marker([lat, lon], { icon })
+              .bindPopup(popupContent, { maxWidth: 320, maxHeight: 400 })
+              .addTo(markers);
+
+            markerCount++;
+          } catch (error) {
+            console.error("Error processing detection " + index + ":", error);
+          }
+        });
+
+        // Update detection count
+        document.getElementById("detectionCount").textContent = markerCount;
+
+        // Fit map to markers if any exist
+        if (markerCount > 0) {
+          try {
+            const bounds = markers.getBounds();
+            if (bounds.isValid()) {
+              map.fitBounds(bounds, { padding: [50, 50] });
+              console.log("Map fitted to bounds");
+            }
+          } catch (e) {
+            console.warn("Could not fit map bounds:", e);
+          }
+        } else {
+          map.setView(center, zoom);
+        }
+
+        console.log("Map update complete: " + markerCount + " markers added");
+      } catch (error) {
+        console.error("Error loading detections:", error);
+        document.getElementById("detectionCount").textContent = "0";
+      }
+    }
+
+    // Apply filters
+    window.applyFilters = function () {
+      const filters = {};
+
+      const severity = document.getElementById("severityFilter").value;
+      if (severity) filters.severity = severity;
+
+      const confidence = document.getElementById("confidenceFilter").value;
+      if (confidence) filters.min_confidence = (confidence / 100).toFixed(2);
+
+      const verified = document.getElementById("verifiedFilter").checked;
+      if (verified) filters.verified = "true";
+
+      console.log("Applying filters:", filters);
+      loadDetections(filters);
+    };
+
+    // Refresh data
+    window.refreshData = function () {
+      console.log("Refreshing data...");
+      window.applyFilters();
+    };
+
+    // Close modal
+    window.closeModal = function () {
+      document.getElementById("detectionModal").style.display = "none";
+    };
+
+    // Initial load
+    console.log("Performing initial load...");
+    loadDetections();
+  }
+
+  // Initialize map when DOM is ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeMap);
+  } else {
+    initializeMap();
+  }
+</script>
+{% endblock %}

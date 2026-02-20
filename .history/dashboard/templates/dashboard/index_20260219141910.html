@@ -1,0 +1,234 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Dashboard - Oil Spill Detection{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-tachometer-alt"></i> Dashboard Overview</h1>
+    <p>Real-time monitoring and detection statistics</p>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon text-primary">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3>{{ total_detections }}</h3>
+            <p>Total Detections</p>
+            <small class="text-muted">
+                <i class="fas fa-arrow-up text-success"></i>
+                {{ recent_detections }} this week
+            </small>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon text-warning">
+                <i class="fas fa-eye"></i>
+            </div>
+            <h3>{{ unverified_detections.count }}</h3>
+            <p>Pending Verification</p>
+            <small class="text-muted">Needs review</small>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon text-success">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h3>{{ avg_confidence|floatformat:2 }}</h3>
+            <p>Avg Confidence</p>
+            <small class="text-muted">Model accuracy</small>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="icon text-info">
+                <i class="fas fa-map-marked-alt"></i>
+            </div>
+            <h3>{{ active_regions }}</h3>
+            <p>Active Regions</p>
+            <small class="text-muted">Being monitored</small>
+        </div>
+    </div>
+</div>
+
+<!-- Processing Status -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="fas fa-image"></i> Processing Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Total Images</span>
+                    <strong>{{ total_images }}</strong>
+                </div>
+                <div class="progress mb-3" style="height: 25px;">
+                    <div class="progress-bar bg-success" role="progressbar" 
+                         style="width: {{ processed_percent }}%">
+                        {{ processed_images }} Processed
+                    </div>
+                    <div class="progress-bar bg-warning" role="progressbar" 
+                         style="width: {{ pending_percent }}%">
+                        {{ pending_images }} Pending
+                    </div>
+                </div>
+                <small class="text-muted">
+                    {{ processed_percent|floatformat:1 }}% Complete
+                </small>
+                </div>
+                </div>
+</div>
+
+<div class="col-md-6">
+    <div class="card">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Severity Distribution</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="severityChart"></canvas>
+        </div>
+    </div>
+</div>
+</div>
+<!-- Recent Detections -->
+<div class="row g-3">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Recent Unverified Detections</h5>
+                <a href="{% url 'dashboard:map' %}" class="btn btn-sm btn-primary">
+                    View All on Map
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Date</th>
+                                <th>Location</th>
+                                <th>Severity</th>
+                                <th>Confidence</th>
+                                <th>Area (km²)</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detection in unverified_detections %}
+                            <tr>
+                                <td>#{{ detection.id }}</td>
+                                <td>{{ detection.detection_date|date:"M d, Y H:i" }}</td>
+                                <td>
+                                    {{ detection.location.y|floatformat:2 }},
+                                    {{ detection.location.x|floatformat:2 }}
+                                </td>
+                                <td>
+                                    <span class="badge badge-{{ detection.severity|lower }}">
+                                        {{ detection.get_severity_display }}
+                                    </span>
+                                </td>
+                                <td>{{ detection.confidence_score|floatformat:2 }}</td>
+                                <td>{{ detection.area_size|floatformat:2 }}</td>
+                                <td>
+                                    <a href="{% url 'dashboard:detection_detail' detection.id %}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">
+                                    No unverified detections
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+    <div class="card">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-bell"></i> Recent Alerts</h5>
+        </div>
+        <div class="card-body">
+            <div class="list-group list-group-flush">
+                {% for alert in recent_alerts %}
+                <div class="list-group-item px-0">
+                    <div class="d-flex justify-content-between">
+                        <strong>Detection #{{ alert.detection.id }}</strong>
+                        <small class="text-muted">
+                            {{ alert.created_at|timesince }} ago
+                        </small>
+                    </div>
+                    <p class="mb-1 small">{{ alert.message|truncatewords:15 }}</p>
+                    {% if alert.sent %}
+                    <small class="text-success">
+                        <i class="fas fa-check"></i> Sent
+                    </small>
+                    {% else %}
+                    <small class="text-warning">
+                        <i class="fas fa-clock"></i> Pending
+                    </small>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p class="text-muted text-center">No recent alerts</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+// Severity Distribution Chart
+const ctx = document.getElementById('severityChart').getContext('2d');
+const severityData = {{ severity_stats|safe }};
+
+const labels = severityData.map(item => item.severity);
+const data = severityData.map(item => item.count);
+const colors = {
+    'LOW': '#28a745',
+    'MEDIUM': '#ffc107',
+    'HIGH': '#ff6b35',
+    'CRITICAL': '#dc3545'
+};
+
+new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+        labels: labels,
+        datasets: [{
+            data: data,
+            backgroundColor: labels.map(label => colors[label]),
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// Auto-refresh every 30 seconds
+setTimeout(() => location.reload(), 30000);
+</script>
+{% endblock %}

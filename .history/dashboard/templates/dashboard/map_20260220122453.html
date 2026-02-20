@@ -1,0 +1,165 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Map View - Oil Spill Detection{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-map-marked-alt"></i> Oil Spill Detection Map</h1>
+  <p>Interactive satellite monitoring and detection tracking</p>
+</div>
+
+<style>
+  #map { width: 100%; height: 600px; border-radius: 8px; }
+  .map-controls { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+  .filter-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: flex-end; }
+  .filter-group { display: flex; flex-direction: column; gap: 8px; }
+  .filter-group label { font-weight: 600; color: #333; font-size: 0.9em; }
+  .filter-group select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em; }
+  .btn-action { padding: 10px 20px; background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+  .btn-action:hover { background: linear-gradient(135deg, #0052a3 0%, #003d7a 100%); }
+</style>
+
+<!-- Map Controls -->
+<div class="map-controls">
+  <div class="filter-row">
+    <div class="filter-group">
+      <label>📊 Severity Level</label>
+      <select id="severityFilter">
+        <option value="">All Severities</option>
+        <option value="LOW">⭕ Low</option>
+        <option value="MEDIUM">🟡 Medium</option>
+        <option value="HIGH">🔴 High</option>
+        <option value="CRITICAL">⛔ Critical</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>📈 Min Confidence: <span id="confidenceValue">50%</span></label>
+      <input type="range" id="confidenceFilter" min="0" max="100" value="50" step="5" style="padding: 5px;" />
+    </div>
+    <div class="filter-group">
+      <label style="display: flex; align-items: center; gap: 10px;">
+        <input type="checkbox" id="verifiedFilter" />
+        <span>✅ Verified Only</span>
+      </label>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn-action" onclick="applyFilters()">🔍 Apply Filters</button>
+      <button class="btn-action" style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);" onclick="refreshData()">🔄 Refresh</button>
+    </div>
+  </div>
+</div>
+
+<!-- Map -->
+<div id="map" style="background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); margin-bottom: 20px;"></div>
+
+<!-- Statistics -->
+<div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); text-align: center;">
+  <p>📍 Showing <strong id="detectionCount">0</strong> detections on the map</p>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function initializeMap() {
+    const center = [5.0, 5.5];
+    const zoom = 8;
+    const map = L.map("map").setView(center, zoom);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors",
+      maxZoom: 19,
+    }).addTo(map);
+
+    let markers = L.layerGroup().addTo(map);
+
+    const severityColors = {
+      LOW: "#22c55e",
+      MEDIUM: "#f59e0b",
+      HIGH: "#ef4444",
+      CRITICAL: "#7c2d12",
+    };
+
+    document.getElementById("confidenceFilter").addEventListener("input", function () {
+      document.getElementById("confidenceValue").textContent = this.value + "%";
+    });
+
+    async function loadDetections(filters = {}) {
+      try {
+        let url = "/api/detections/?";
+        const params = new URLSearchParams();
+        if (filters.severity) params.append("severity", filters.severity);
+        if (filters.min_confidence) params.append("min_confidence", filters.min_confidence);
+        if (filters.verified) params.append("verified", filters.verified);
+        url += params.toString();
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          document.getElementById("detectionCount").textContent = "0";
+          markers.clearLayers();
+          return;
+        }
+
+        const data = await response.json();
+        const detections = Array.isArray(data) ? data : data.results || data.features || [];
+
+        markers.clearLayers();
+        let markerCount = 0;
+
+        detections.forEach((detection) => {
+          if (!detection.location || !detection.location.coordinates || detection.location.coordinates.length < 2) return;
+
+          const coords = detection.location.coordinates;
+          const lat = parseFloat(coords[1]);
+          const lon = parseFloat(coords[0]);
+          if (isNaN(lat) || isNaN(lon)) return;
+
+          const severity = detection.severity || "MEDIUM";
+          const color = severityColors[severity] || "#999999";
+          const icon = L.divIcon({
+            html: `<div style="background-color: ${color}; width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 20px;">🛢️</div>`,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+          });
+
+          const popupContent = `<div style="font-family: sans-serif; font-size: 13px; color: #1f2937;"><strong>Detection #${detection.id}</strong><br>Severity: ${severity}<br>Lat: ${lat.toFixed(4)}<br>Lon: ${lon.toFixed(4)}<br>Confidence: ${(detection.confidence_score * 100).toFixed(1)}%</div>`;
+
+          L.marker([lat, lon], { icon }).bindPopup(popupContent).addTo(markers);
+          markerCount++;
+        });
+
+        document.getElementById("detectionCount").textContent = markerCount;
+        if (markerCount > 0) {
+          try {
+            const bounds = markers.getBounds();
+            if (bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50] });
+          } catch (e) {}
+        }
+      } catch (error) {
+        console.error("Error:", error);
+      }
+    }
+
+    window.applyFilters = function () {
+      const filters = {};
+      const severity = document.getElementById("severityFilter").value;
+      if (severity) filters.severity = severity;
+      const confidence = document.getElementById("confidenceFilter").value;
+      if (confidence) filters.min_confidence = (confidence / 100).toFixed(2);
+      const verified = document.getElementById("verifiedFilter").checked;
+      if (verified) filters.verified = "true";
+      loadDetections(filters);
+    };
+
+    window.refreshData = function () { window.applyFilters(); };
+    loadDetections();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeMap);
+  } else {
+    initializeMap();
+  }
+</script>
+{% endblock %}

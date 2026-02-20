@@ -1,0 +1,73 @@
+﻿{% extends 'dashboard/base.html' %} {% load static %} {% block title %}Dashboard
+- Oil Spill Detection{% endblock %} {% block content %}
+<div class="page-header">
+  <h1><i class="fas fa-tachometer-alt"></i> Dashboard Overview</h1>
+  <p>Real-time monitoring and detection statistics</p>
+  <div class="mt-2">
+    <a class="btn btn-primary btn-sm" href="{% url 'dashboard:monitoring' %}">
+      <i class="fas fa-satellite-dish"></i> Open Monitoring
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="stat-card">
+      <h3>{{ total_detections }}</h3>
+      <p>Total Detections</p>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-body">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Date</th>
+              <th>Location</th>
+              <th>Severity</th>
+              <th>Confidence</th>
+              <th>Area</th>
+              <th>Verified</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for detection in unverified_detections %}
+            <tr>
+              <td>#{{ detection.id }}</td>
+              <td>{{ detection.detection_date|date:"M d, Y H:i" }}</td>
+              <td>
+                <span style="font-family: monospace"
+                  >{{ detection.latitude|floatformat:4 }}, {{
+                  detection.longitude|floatformat:4 }}</span
+                >
+              </td>
+              <td>
+                <span class="badge badge-{{ detection.severity|lower }}"
+                  >{{ detection.get_severity_display }}</span
+                >
+              </td>
+              <td>{{ detection.confidence_score|floatformat:2 }}</td>
+              <td>{{ detection.area_size|floatformat:2 }}</td>
+              <td>
+                {% if detection.verified %}<span style="color: #10b981"></span
+                >{% else %}<span style="color: #ef4444"></span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="7" class="text-center text-muted">No detections</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

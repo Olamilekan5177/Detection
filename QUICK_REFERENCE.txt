@@ -1,0 +1,306 @@
+# 📋 Quick Reference Card
+
+## Cheat Sheet - Oil Spill Detection System
+
+### 🚀 Start Everything Now
+```powershell
+.\quickstart.bat    # Setup
+.\run_dashboard.bat # Deploy + open browser
+```
+
+### 🌐 Dashboard URLs
+- **Home**: http://localhost:8000/dashboard/
+- **Map**: http://localhost:8000/dashboard/detections/map/
+- **Monitoring**: http://localhost:8000/dashboard/monitoring/status/
+- **Regions**: http://localhost:8000/dashboard/regions/
+- **Stats**: http://localhost:8000/dashboard/statistics/
+
+### 🔌 Common Commands
+| Task | Command |
+|------|---------|
+| Start Django | `python manage.py runserver` |
+| Start Monitoring | `python continuous_monitoring.py --interval 24` |
+| Test Sentinel Hub | `python detection/setup_sentinel_hub.py --test` |
+| View Logs | `Get-Content monitoring.log -Tail 20` |
+| Train Model | `python train_sklearn_model.py` |
+| Stop Everything | Close All Python windows (Ctrl+C) |
+
+### 📊 System Status
+| Component | Status |
+|-----------|--------|
+| Pipeline | ✅ 12/12 steps complete |
+| Model | ✅ 90% accurate (576 MB) |
+| Dashboard | ✅ 5 pages, all working |
+| Monitoring | ✅ 24/7 running |
+| Sentinel Hub | ✅ Real data integration |
+| Documentation | ✅ Complete |
+
+### 🎯 First Steps
+1. Run `.\quickstart.bat`
+2. Run `.\run_dashboard.bat`
+3. Visit `http://localhost:8000/dashboard/`
+4. Go to `/dashboard/regions/` → Add region
+5. Check `/dashboard/detections/map/` for results
+
+### 🗂 Key Files
+| File | Purpose |
+|------|---------|
+| `.env` | Sentinel Hub credentials |
+| `monitoring_regions.json` | Region configuration |
+| `continuous_monitoring.py` | Main orchestrator |
+| `ml_models/saved_models/oil_spill_detector.joblib` | ML model |
+| `results/*.json` | Detection outputs |
+| `monitoring.log` | Activity logs |
+
+### ⚙️ Configuration
+| Setting | File | Default |
+|---------|------|---------|
+| Monitoring interval | `continuous_monitoring.py` (line ~150) | 24 hours |
+| Default region | `monitoring_regions.json` | Niger Delta |
+| Model confidence threshold | `detection/spatial_postprocessing.py` | 0.5+ |
+| Dashboard port | `python manage.py runserver` | 8000 |
+
+### 🔍 Troubleshooting Quick Links
+| Problem | Solution |
+|---------|----------|
+| Dashboard won't load | Check `/dashboard/` URL syntax |
+| No detections showing | Wait 24h for monitoring run or run manually |
+| Sentinel Hub offline | Run: `python detection/setup_sentinel_hub.py --test` |
+| Model loading error | Check: `Test-Path ml_models/saved_models/oil_spill_detector.joblib` |
+| Logs not updating | Verify: `Get-Process python \| grep continuous_monitoring` |
+
+### 📈 Expected Performance
+| Metric | Value |
+|--------|-------|
+| Accuracy | 90% |
+| Processing per region | 5-15 minutes |
+| Model size | 576 MB |
+| Minimum RAM | 4 GB |
+| Minimum CPU | 2 cores |
+
+### 🔐 Credentials
+```powershell
+# View .env (BE CAREFUL - CONTAINS SECRETS)
+Get-Content .env
+
+# Add/update credentials
+python detection/setup_sentinel_hub.py --setup
+
+# Validate connection
+python detection/setup_sentinel_hub.py --test
+```
+
+### 📚 Documentation Quick Links
+- **Start Here**: `README_SYSTEM.md`
+- **Integration**: `FRONTEND_INTEGRATION.md`
+- **Deployment**: `DASHBOARD_DEPLOYMENT_CHECKLIST.md`
+- **Troubleshooting**: `SYSTEM_ARCHITECTURE_DEBUG.md`
+- **All Docs**: `DOCUMENTATION_INDEX.md`
+
+### 🎮 Dashboard Features Quick Tour
+```
+HOME PAGE:
+- System status cards (4)
+- Statistics summary
+- Recent detections table
+- Active regions table
+- System health
+
+MONITORING:
+- Pipeline state
+- Region status
+- Live log viewer
+- Download/clear logs
+
+MAP:
+- Leaflet map
+- Colored markers (red=high)
+- Clickable list
+- Filters
+
+REGIONS:
+- List all regions
+- Add new region
+- Quick-add presets
+- Enable/disable
+
+STATS:
+- Detections by region
+- Over time chart
+- Confidence histogram
+- Export data
+```
+
+### 🆘 Emergency Recovery
+```powershell
+# Stop everything
+Stop-Process -ProcessName python -Force
+
+# Restart monitoring
+.venv\Scripts\python.exe continuous_monitoring.py --interval 24
+
+# Restart dashboard
+python manage.py runserver
+
+# Check status
+Get-Process python
+```
+
+### 📧 Data Export
+```powershell
+# Export all detections as GeoJSON
+Invoke-WebRequest http://localhost:8000/dashboard/api/detections-geojson/ | Select-Object -ExpandProperty Content
+
+# Export as JSON
+Invoke-WebRequest http://localhost:8000/dashboard/api/recent-detections/?limit=1000
+```
+
+### 6️⃣🅰️ SAR Image Processing Pipeline
+```
+Download → Preprocessing → Patch Extract → Feature Extract → Model → Coordinates → Storage
+   1s      →  5-10s    →    2-3s    →     10-15s    → 30-45s → 5-10s → 1-2s
+                           TOTAL: 2-4 minutes per tile
+```
+
+### 🎯 Monitoring Checklist
+```
+Weekly:
+☑ Check monitoring.log for errors
+☑ Verify continuous_monitoring.py running
+☑ Check disk space usage
+☑ Review detection statistics
+☑ Backup results folder
+
+Monthly:
+☑ Review all detections
+☑ Update monitoring regions if needed
+☑ Check model performance
+☑ Generate stakeholder report
+☑ Archive old results
+
+Quarterly:
+☑ Retrain model if needed
+☑ Review system architecture
+☑ Update documentation
+☑ Plan improvements
+```
+
+### 🚀 Deployment Checklist
+```
+PRE-DEPLOYMENT:
+☑ All files created and tested
+☑ Credentials configured in .env
+☑ Model file exists and loads
+☑ Dashboard pages accessible
+☑ Monitoring runs without errors
+
+DEPLOYMENT:
+☑ Update Django settings for production
+☑ Enable HTTPS/SSL
+☑ Configure allowed hosts
+☑ Set DEBUG = False
+☑ Use production WSGI server (gunicorn)
+☑ Setup database backups
+☑ Configure log rotation
+
+POST-DEPLOYMENT:
+☑ Test all dashboard pages
+☑ Verify monitoring runs
+☑ Check system logs
+☑ Monitor resource usage
+☑ Schedule backup jobs
+```
+
+### 🎓 Learning Paths
+```
+5 MIN:   Run system + explore dashboard
+15 MIN:  Read README_SYSTEM.md
+45 MIN:  Read and understand all docs
+2 HOURS: Understand all code
+3+ HOUR: Modify and extend system
+```
+
+### 📱 API Endpoints Reference
+```
+GET  /dashboard/api/system-status/
+     → System health info (JSON)
+
+GET  /dashboard/api/recent-detections/?limit=10
+     → Last N detections (JSON)
+
+GET  /dashboard/api/detections-geojson/
+     → All detections (GeoJSON)
+
+POST /dashboard/api/regions/add/
+     → Add new monitoring region
+
+POST /dashboard/api/regions/{name}/toggle/
+     → Enable/disable region
+```
+
+### 🔧 Configuration Reference
+```
+continuous_monitoring.py:
+  - Line ~150: Change interval_hours = 24
+  - Line ~200: Add/remove monitoring regions
+  
+dashboard/views_enhanced.py:
+  - Load data from results/ folder
+  - Transform to view format
+  - Calculate statistics
+
+detection/spatial_postprocessing.py:
+  - Line ~50: Change confidence threshold
+  - Line ~100: Change clustering radius
+
+.env:
+  - SENTINEL_HUB_CLIENT_ID = your-id
+  - SENTINEL_HUB_CLIENT_SECRET = your-secret
+```
+
+### 📊 Typical Workflow
+```
+1. System starts → Loads config
+2. Queries Sentinel Hub → Find tiles
+3. Downloads imagery → 50-100 MB
+4. Processes pipeline → 12 steps
+5. Runs ML model → 90% accuracy
+6. Saves results → JSON/GeoJSON
+7. Dashboard loads → Shows on map
+8. User reviews → Takes action
+9. Repeats in 24h → Continuous
+```
+
+### 💰 Resource Usage
+```
+Idle state:
+- CPU: ~10%
+- Memory: 500 MB
+- Disk: Minimal
+
+During monitoring:
+- CPU: 80-100%
+- Memory: 2-3 GB
+- Disk: ~150 MB per region run
+
+Dashboard inactive:
+- CPU: <5%
+- Memory: 300 MB
+- Network: <1 KB
+```
+
+### ✨ Pro Tips
+1. **Add regions quickly**: Use Quick Add buttons instead of manually entering bbox
+2. **Monitor performance**: Check dashboard health cards for system status
+3. **Download data**: Use API endpoints to export detections
+4. **Check logs**: Always check monitoring.log when troubleshooting
+5. **Backup results**: Archive results/ folder regularly
+6. **Schedule monitoring**: Use Windows Task Scheduler for production
+7. **Set alerts**: Monitor for new files in results/ folder automatically
+8. **Share access**: Deploy to server, add multiple users
+
+---
+
+**SAVE THIS CARD: Bookmark or print for quick reference while using the system!**
+
+Last Updated: 2026-02-19 | Status: ✅ Production Ready

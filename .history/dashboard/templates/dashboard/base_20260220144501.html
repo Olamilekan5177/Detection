@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Oil Spill Detection System{% endblock %}</title>
+
+    <!-- CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <style>
+      :root {
+        --primary-color: #0066cc;
+        --danger-color: #dc3545;
+        --warning-color: #ffc107;
+        --success-color: #28a745;
+        --dark-bg: #1a1a2e;
+        --sidebar-width: 250px;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f8f9fa;
+      }
+
+      /* Sidebar */
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: var(--sidebar-width);
+        background: var(--dark-bg);
+        color: white;
+        padding: 20px 0;
+        overflow-y: auto;
+        z-index: 1000;
+      }
+
+      .sidebar .logo {
+        padding: 0 20px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .sidebar .logo h3 {
+        font-size: 1.2rem;
+        margin: 0;
+      }
+
+      .sidebar-menu {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .sidebar-menu li a {
+        display: block;
+        padding: 15px 20px;
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+
+      .sidebar-menu li a:hover,
+      .sidebar-menu li a.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        border-left: 3px solid var(--primary-color);
+      }
+
+      .sidebar-menu li a i {
+        margin-right: 10px;
+        width: 20px;
+      }
+
+      /* Main content */
+      .main-content {
+        margin-left: var(--sidebar-width);
+        padding: 20px;
+        min-height: 100vh;
+      }
+
+      /* Header */
+      .page-header {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .page-header h1 {
+        margin: 0;
+        font-size: 1.8rem;
+        color: #333;
+      }
+
+      /* Cards */
+      .stat-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s;
+      }
+
+      .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+      }
+
+      .stat-card .icon {
+        font-size: 2.5rem;
+        opacity: 0.8;
+      }
+
+      .stat-card h3 {
+        font-size: 2rem;
+        margin: 10px 0;
+      }
+
+      .stat-card p {
+        color: #666;
+        margin: 0;
+      }
+
+      /* Severity badges */
+      .badge-low {
+        background: var(--success-color);
+      }
+      .badge-medium {
+        background: var(--warning-color);
+        color: #000;
+      }
+      .badge-high {
+        background: #ff6b35;
+      }
+      .badge-critical {
+        background: var(--danger-color);
+      }
+
+      /* Map container */
+      .map-container {
+        height: 600px;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .sidebar {
+          transform: translateX(-100%);
+          transition: transform 0.3s;
+        }
+
+        .sidebar.active {
+          transform: translateX(0);
+        }
+
+        .main-content {
+          margin-left: 0;
+        }
+      }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="logo">
+        <h3><i class="fas fa-water"></i> Oil Spill Monitor</h3>
+      </div>
+
+      <ul class="sidebar-menu">
+        <li>
+          <a
+            href="{% url 'dashboard:home' %}"
+            class="{% if request.resolver_match.url_name == 'home' %}active{% endif %}"
+          >
+            <i class="fas fa-home"></i> Dashboard
+          </a>
+        </li>
+        <li>
+          <a
+            href="{% url 'dashboard:map' %}"
+            class="{% if request.resolver_match.url_name == 'map' %}active{% endif %}"
+          >
+            <i class="fas fa-map"></i> Map View
+          </a>
+        </li>
+        <li>
+          <a
+            href="{% url 'dashboard:analytics' %}"
+            class="{% if request.resolver_match.url_name == 'analytics' %}active{% endif %}"
+          >
+            <i class="fas fa-chart-line"></i> Analytics
+          </a>
+        </li>
+        <li>
+          <a
+            href="{% url 'dashboard:monitoring' %}"
+            class="{% if request.resolver_match.url_name == 'monitoring' %}active{% endif %}"
+          >
+            <i class="fas fa-satellite-dish"></i> Monitoring
+          </a>
+        </li>
+        <li>
+          <a href="/admin/"> <i class="fas fa-cog"></i> Settings </a>
+        </li>
+        <li>
+          <a href="/api/"> <i class="fas fa-code"></i> API </a>
+        </li>
+      </ul>
+
+      <div style="position: absolute; bottom: 20px; left: 20px; right: 20px">
+        <small style="color: rgba(255, 255, 255, 0.5)">
+          Logged in as: {{ request.user.username }}
+        </small>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">{% block content %}{% endblock %}</div>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>

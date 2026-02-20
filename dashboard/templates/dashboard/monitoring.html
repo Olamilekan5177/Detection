@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="en">
+  {% load math_filters %}
+      <header>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🛰️ Oil Spill Detection Dashboard</title>
+    <style>
+      * {
+          <p style="color: #94a3b8; margin-top: 5px; font-size: 0.85em">
+            Server render time: {% now "Y-m-d H:i:s" %}
+          </p>
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #e2e8f0;
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      h1 {
+        font-size: 2em;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 15px;
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid #22c55e;
+        border-radius: 20px;
+        color: #22c55e;
+        font-weight: 600;
+      }
+
+      .status-badge.warning {
+        background: rgba(239, 68, 68, 0.1);
+        border-color: #ef4444;
+        color: #ef4444;
+      }
+
+      .pulse {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 20px;
+        backdrop-filter: blur(10px);
+      }
+
+      .card h2 {
+        font-size: 1.2em;
+        margin-bottom: 15px;
+        color: #60a5fa;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .stat {
+        text-align: center;
+        padding: 15px;
+      }
+
+      .stat-number {
+        font-size: 2.5em;
+        font-weight: bold;
+        color: #60a5fa;
+      }
+
+      .stat-label {
+        color: #94a3b8;
+        margin-top: 5px;
+      }
+
+      .alerts-list {
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .alert-item {
+        background: rgba(239, 68, 68, 0.1);
+        border-left: 4px solid #ef4444;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .alert-item:hover {
+        background: rgba(239, 68, 68, 0.2);
+        transform: translateX(5px);
+      }
+
+      .alert-item.high {
+        border-left-color: #dc2626;
+      }
+      .alert-item.medium {
+        border-left-color: #f59e0b;
+        background: rgba(245, 158, 11, 0.1);
+      }
+      .alert-item.low {
+        border-left-color: #3b82f6;
+        background: rgba(59, 130, 246, 0.1);
+      }
+
+      .alert-item.acknowledged {
+        opacity: 0.6;
+        border-left-color: #22c55e;
+        background: rgba(34, 197, 94, 0.1);
+      }
+
+      .alert-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .alert-time {
+        color: #94a3b8;
+        font-size: 0.9em;
+      }
+
+      .alert-severity {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: 600;
+      }
+
+      .alert-severity.high {
+        background: #ef4444;
+      }
+      .alert-severity.medium {
+        background: #f59e0b;
+      }
+      .alert-severity.low {
+        background: #3b82f6;
+      }
+
+      .alert-message {
+        margin: 8px 0;
+        font-size: 0.95em;
+      }
+
+      .alert-coords {
+        color: #94a3b8;
+        font-size: 0.85em;
+        margin: 5px 0;
+      }
+
+      .alert-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      button {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 0.85em;
+        transition: all 0.3s;
+        font-weight: 600;
+      }
+
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #2563eb;
+      }
+
+      .btn-success {
+        background: #22c55e;
+        color: white;
+      }
+
+      .btn-success:hover {
+        background: #16a34a;
+      }
+
+      .btn-warning {
+        background: #f59e0b;
+        color: white;
+      }
+
+      .btn-warning:hover {
+        background: #d97706;
+      }
+
+      .images-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+        max-height: 500px;
+        overflow-y: auto;
+      }
+
+      .image-card {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        overflow: hidden;
+        transition: all 0.3s;
+        cursor: pointer;
+      }
+
+      .image-card:hover {
+        border-color: #60a5fa;
+        background: rgba(96, 165, 250, 0.05);
+      }
+
+      .image-thumb {
+        width: 100%;
+        height: 150px;
+        background: #1e293b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        font-size: 3em;
+      }
+
+      .image-info {
+        padding: 10px;
+        font-size: 0.85em;
+      }
+
+      .image-date {
+        color: #94a3b8;
+        margin-top: 5px;
+      }
+
+      .detections-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9em;
+      }
+
+      .detections-table th {
+        background: rgba(59, 130, 246, 0.1);
+        padding: 12px;
+        text-align: left;
+        border-bottom: 2px solid rgba(59, 130, 246, 0.3);
+        color: #60a5fa;
+        font-weight: 600;
+      }
+
+      .detections-table td {
+        padding: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .confidence-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .confidence-bar-fill {
+        height: 8px;
+        background: linear-gradient(90deg, #3b82f6, #60a5fa);
+        border-radius: 4px;
+        width: 100px;
+      }
+
+      .verified-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8em;
+        font-weight: 600;
+      }
+
+      .verified-badge.yes {
+        background: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+      }
+
+      .verified-badge.no {
+        background: rgba(107, 114, 128, 0.2);
+        color: #d1d5db;
+      }
+
+      .refresh-btn {
+        background: #60a5fa;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .refresh-btn:hover {
+        background: #3b82f6;
+      }
+
+      .map-container {
+        width: 100%;
+        height: 400px;
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #94a3b8;
+        font-size: 0.9em;
+      }
+
+      .no-data {
+        text-align: center;
+        padding: 30px;
+        color: #94a3b8;
+      }
+
+      .no-data-icon {
+        font-size: 3em;
+        margin-bottom: 15px;
+      }
+
+      @media (max-width: 1200px) {
+        .grid-3 {
+          grid-template-columns: 1fr 1fr;
+        }
+        .images-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .grid-2,
+        .grid-3 {
+          grid-template-columns: 1fr;
+        }
+        .images-grid {
+          grid-template-columns: 1fr;
+        }
+        header {
+          flex-direction: column;
+          gap: 15px;
+        }
+      }
+
+      .scroll-hint {
+        color: #64748b;
+        font-size: 0.8em;
+        text-align: center;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      {% csrf_token %}
+      <header>
+        <h1>🛰️ Oil Spill Detection Dashboard</h1>
+        <div style="display: flex; gap: 15px; align-items: center">
+          <span class="status-badge">
+            <span class="pulse"></span>
+            Live Monitoring
+          </span>
+          <button class="refresh-btn" onclick="location.reload()">
+            🔄 Refresh
+          </button>
+        </div>
+      </header>
+
+      <!-- Statistics -->
+      <div class="grid-3">
+        <div class="card">
+          <div class="stat">
+            <div class="stat-number">{{ total_images }}</div>
+            <div class="stat-label">Satellite Images</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="stat">
+            <div class="stat-number" style="color: #ef4444">
+              {{ total_detections }}
+            </div>
+            <div class="stat-label">Oil Spill Detections</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="stat">
+            <div class="stat-number" style="color: #f59e0b">
+              {{ pending_alerts }}
+            </div>
+            <div class="stat-label">Pending Alerts</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="grid-2">
+        <!-- Alerts Column -->
+        <div class="card">
+          <h2>🚨 Active Alerts</h2>
+          {% if alerts %}
+          <div class="alerts-list">
+            {% for alert in alerts %}
+            <div
+              class="alert-item {% if alert.acknowledged %}acknowledged{% else %}{{ alert.detection.severity }}{% endif %}"
+              onclick="expandAlert(this)"
+            >
+              <div class="alert-header">
+                <div>
+                  <div style="font-weight: 600">
+                    {{ alert.detection.satellite_image.image_id }}
+                  </div>
+                  <div class="alert-coords">
+                    {% if alert.detection.location %} 📍 Lat {{ alert.detection.location_lat }}, Lon {{ alert.detection.location_lon }}{% else %} 📍 Location unavailable {% endif %}
+                  </div>
+                </div>
+                <div style="text-align: right">
+                  <div class="alert-severity {{ alert.detection.severity }}">
+                    {{ alert.detection.severity|upper }}
+                  </div>
+                  <div class="alert-time">
+                    {{ alert.created_at|date:"M d, H:i" }}
+                  </div>
+                </div>
+              </div>
+              <div class="alert-message">{{ alert.message }}</div>
+              <div style="color: #60a5fa; font-weight: 600">
+                Confidence: {{ alert.detection.confidence_percentage }}%
+              </div>
+              {% if not alert.acknowledged %}
+              <div class="alert-actions">
+                <button
+                  class="btn-success"
+                  onclick="markAcknowledged({{ alert.id }}, event)"
+                >
+                  ✓ Acknowledge
+                </button>
+                <button
+                  class="btn-warning"
+                  onclick="verifyDetection({{ alert.detection.id }}, event)"
+                >
+                  📍 Verify
+                </button>
+                <button
+                  class="btn-primary"
+                  onclick="reportToAuthority({{ alert.id }}, event)"
+                >
+                  🚨 Report
+                </button>
+              </div>
+              {% else %}
+              <div style="margin-top: 10px; color: #22c55e; font-size: 0.9em">
+                ✓ Acknowledged on {{ alert.acknowledged_at|date:"M d, H:i" }}
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <div class="scroll-hint">
+            {{ alerts|length }} alert{{ alerts|length|pluralize }}
+          </div>
+          {% else %}
+          <div class="no-data">
+            <div class="no-data-icon">✓</div>
+            <p>No active alerts</p>
+            <p style="font-size: 0.9em">System is monitoring normally</p>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Recent Images Column -->
+        <div class="card">
+          <h2>🖼️ Recent Satellite Images</h2>
+          {% if images %}
+          <div class="images-grid">
+            {% for image in images %}
+            <div class="image-card">
+              <div class="image-thumb">
+                {% if image.source == 'sentinel-2' %} 🛰️ {% elif image.source ==
+                'real-satellite-data' %} 🌍 {% else %} 📡 {% endif %}
+              </div>
+              <div class="image-info">
+                <div
+                  style="
+                    font-weight: 600;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                  "
+                >
+                  {{ image.source|upper }}
+                </div>
+                <div style="color: #94a3b8; font-size: 0.8em">
+                  {{ image.resolution }}m
+                </div>
+                <div class="image-date">{{ image.acquisition_date }}</div>
+                {% if image.processed %}
+                <div style="color: #22c55e; font-size: 0.8em; margin-top: 5px">
+                  ✓ Processed
+                </div>
+                {% else %}
+                <div style="color: #f59e0b; font-size: 0.8em; margin-top: 5px">
+                  ⏳ Pending
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="scroll-hint">
+            Showing latest {{ images|length }} images
+          </div>
+          {% else %}
+          <div class="no-data">
+            <div class="no-data-icon">📡</div>
+            <p>No satellite images yet</p>
+            <p style="font-size: 0.9em">
+              Run monitoring script to download images
+            </p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Detections Table -->
+      <div class="card">
+        <h2>📊 Detection History</h2>
+        {% if detections %}
+        <div style="overflow-x: auto">
+          <table class="detections-table">
+            <thead>
+              <tr>
+                <th>Image ID</th>
+                <th>Date</th>
+                <th>Confidence</th>
+                <th>Severity</th>
+                <th>Verified</th>
+                <th>Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for detection in detections %}
+              <tr>
+                <td>{{ detection.satellite_image.image_id }}</td>
+                <td>{{ detection.detection_date|date:"M d, H:i" }}</td>
+                <td>
+                  <div class="confidence-bar">
+                    <div
+                      class="confidence-bar-fill"
+                      style="width: {{ detection.confidence_percentage }}%;"
+                    ></div>
+                    <span>{{ detection.confidence_percentage }}%</span>
+                  </div>
+                </td>
+                <td>
+                  <span
+                    style="color: {% if detection.severity == 'high' %}#ef4444{% elif detection.severity == 'medium' %}#f59e0b{% else %}#3b82f6{% endif %};"
+                  >
+                    {{ detection.severity|upper }}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    class="verified-badge {% if detection.verified %}yes{% else %}no{% endif %}"
+                  >
+                    {% if detection.verified %}✓ Yes{% else %}○ No{% endif %}
+                  </span>
+                  <div style="margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap;">
+                    {% if detection.verified %}
+                    <button
+                      class="btn-warning"
+                      style="padding: 4px 8px; font-size: 0.75em;"
+                      onclick="unverifyDetection({{ detection.id }}, event)"
+                    >
+                      Unverify
+                    </button>
+                    {% endif %}
+                    {% if detection.alert %}
+                      {% if detection.alert.acknowledged %}
+                      <button
+                        class="btn-success"
+                        style="padding: 4px 8px; font-size: 0.75em;"
+                        onclick="unacknowledgeAlert({{ detection.alert.id }}, event)"
+                      >
+                        Unack
+                      </button>
+                      {% endif %}
+                      {% if detection.alert.sent %}
+                      <button
+                        class="btn-primary"
+                        style="padding: 4px 8px; font-size: 0.75em;"
+                        onclick="unreportAlert({{ detection.alert.id }}, event)"
+                      >
+                        Unreport
+                      </button>
+                      {% endif %}
+                    {% endif %}
+                    <button
+                      class="btn-danger"
+                      style="padding: 4px 8px; font-size: 0.75em;"
+                      onclick="deleteDetection({{ detection.id }}, event)"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+                <td style="color: #94a3b8; font-size: 0.9em">
+                  {% if detection.location %} 📍 Lat {{ detection.location_lat }}, Lon {{ detection.location_lon }} {% else %}
+                  📍 Location unavailable {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="no-data">
+          <div class="no-data-icon">📈</div>
+          <p>No detections yet</p>
+          <p style="font-size: 0.9em">
+            Detections will appear as satellite imagery is analyzed
+          </p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="card" style="margin-top: 30px">
+        <h2>⚙️ Quick Actions</h2>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+          "
+        >
+          <a href="/admin/" style="text-decoration: none">
+            <button
+              style="
+                width: 100%;
+                padding: 12px;
+                background: #3b82f6;
+                color: white;
+                border-radius: 5px;
+                border: none;
+                cursor: pointer;
+                font-weight: 600;
+              "
+            >
+              🔧 Admin Panel
+            </button>
+          </a>
+          <a href="/api/" style="text-decoration: none">
+            <button
+              style="
+                width: 100%;
+                padding: 12px;
+                background: #3b82f6;
+                color: white;
+                border-radius: 5px;
+                border: none;
+                cursor: pointer;
+                font-weight: 600;
+              "
+            >
+              📡 API Docs
+            </button>
+          </a>
+          <button
+            onclick="downloadReport()"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #22c55e;
+              color: white;
+              border-radius: 5px;
+              border: none;
+              cursor: pointer;
+              font-weight: 600;
+            "
+          >
+            📥 Download Report
+          </button>
+          <button
+            onclick="configureMonitoring()"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #f59e0b;
+              color: white;
+              border-radius: 5px;
+              border: none;
+              cursor: pointer;
+              font-weight: 600;
+            "
+          >
+            📍 Configure Regions
+          </button>
+          <a href="/dashboard/map/" style="text-decoration: none">
+            <button
+              style="
+                width: 100%;
+                padding: 12px;
+                background: #8b5cf6;
+                color: white;
+                border-radius: 5px;
+                border: none;
+                cursor: pointer;
+                font-weight: 600;
+              "
+            >
+              🗺️ View on Map
+            </button>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Get CSRF token from DOM or cookie
+      function getCsrfToken() {
+        // Try to get from hidden input first
+        const tokenInput = document.querySelector("[name=csrfmiddlewaretoken]");
+        if (tokenInput) {
+          return tokenInput.value;
+        }
+
+        // Fall back to getting from cookie
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+          const cookies = document.cookie.split(";");
+          for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, 10) === "csrftoken=") {
+              cookieValue = decodeURIComponent(cookie.substring(10));
+              break;
+            }
+          }
+        }
+        return cookieValue;
+      }
+
+      const csrftoken = getCsrfToken();
+
+      function expandAlert(element) {
+        // Could expand to show more details
+        console.log("Alert clicked");
+      }
+
+      function markAcknowledged(alertId, event) {
+        event.stopPropagation();
+        fetch("/api/alerts/" + alertId + "/acknowledge/", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            alert("Alert acknowledged");
+            location.reload();
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function verifyDetection(detectionId, event) {
+        event.stopPropagation();
+        fetch("/api/detections/" + detectionId + "/verify/", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ verified: true }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            alert("Detection verified");
+            location.reload();
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function reportToAuthority(alertId, event) {
+        event.stopPropagation();
+        fetch("/api/alerts/" + alertId + "/report/", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ reported: true }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            alert("Detection reported to authorities");
+            location.reload();
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function unacknowledgeAlert(alertId, event) {
+        event.stopPropagation();
+        fetch("/api/alerts/" + alertId + "/unacknowledge/", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            alert("Alert unacknowledged");
+            location.reload();
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function unreportAlert(alertId, event) {
+        event.stopPropagation();
+        fetch("/api/alerts/" + alertId + "/unreport/", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            alert("Alert unreported");
+            location.reload();
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function unverifyDetection(detectionId, event) {
+        event.stopPropagation();
+        fetch("/api/detections/" + detectionId + "/unverify/", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": csrftoken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            alert("Detection unverified");
+            location.reload();
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function deleteDetection(detectionId, event) {
+        event.stopPropagation();
+        fetch("/api/detections/" + detectionId + "/", {
+          method: "DELETE",
+          headers: {
+            "X-CSRFToken": csrftoken,
+          },
+        })
+          .then((response) => {
+            if (response.ok) {
+              location.reload();
+              return;
+            }
+            return response.json();
+          })
+          .then((data) => {
+            if (data && data.detail) {
+              alert(data.detail);
+            }
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function downloadReport() {
+        // Would generate and download CSV/PDF report
+        alert("Download report feature coming soon");
+      }
+
+      function configureMonitoring() {
+        window.location.href = "/admin/detection/monitoringregion/";
+      }
+
+      // Auto-refresh every 5 minutes
+      setTimeout(
+        () => {
+          location.reload();
+        },
+        5 * 60 * 1000,
+      );
+    </script>
+  </body>
+</html>
