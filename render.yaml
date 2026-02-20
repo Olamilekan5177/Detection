@@ -1,0 +1,65 @@
+services:
+  - type: web
+    name: oil-spill-detection
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        fromDatabase:
+          name: oil-spill-db
+          property: password
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: .onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: oil-spill-db
+          property: connectionString
+      - key: SENTINEL_HUB_CLIENT_ID
+        sync: false
+      - key: SENTINEL_HUB_CLIENT_SECRET
+        sync: false
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+  - type: background-worker
+    name: satellite-monitoring-worker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python continuous_monitoring.py
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        fromDatabase:
+          name: oil-spill-db
+          property: password
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: .onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: oil-spill-db
+          property: connectionString
+      - key: SENTINEL_HUB_CLIENT_ID
+        sync: false
+      - key: SENTINEL_HUB_CLIENT_SECRET
+        sync: false
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+databases:
+  - name: oil-spill-db
+    databaseName: oilspill
+    user: oilspill
+    plan: free
+    region: oregon
