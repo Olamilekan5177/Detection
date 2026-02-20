@@ -15,9 +15,9 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-# Development settings
-DEBUG = True
-ALLOWED_HOSTS = ['*']  # For development - restrict in production
+# Production/Development settings
+DEBUG = env('DEBUG', default='True') == 'True'
+ALLOWED_HOSTS = env('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 
 SECRET_KEY = env('SECRET_KEY', default='django-insecure-dev-key-only-for-development')
 
@@ -82,6 +82,14 @@ DATABASES = {
     }
 }
 
+# Use PostgreSQL if DATABASE_URL is provided (Render, Heroku, etc.)
+if 'DATABASE_URL' in os.environ:
+    import dj_database_url
+    DATABASES['default'] = dj_database_url.config(
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
+
 # For production with PostGIS:
 # DATABASES = {
 #     'default': {
@@ -136,7 +144,11 @@ ML_MODEL_PATH = BASE_DIR / 'ml_models/saved_models/oil_spill_detector.h5'
 IMAGE_SIZE = (256, 256)  # Input size for CNN
 DETECTION_THRESHOLD = 0.7  # Confidence threshold
 
-# Sentinel Hub API (get free API key from Copernicus)
+# Sentinel Hub API (from Copernicus/Sentinel Hub)
+SENTINEL_HUB_CLIENT_ID = env('SENTINEL_HUB_CLIENT_ID', default='')
+SENTINEL_HUB_CLIENT_SECRET = env('SENTINEL_HUB_CLIENT_SECRET', default='')
+
+# Legacy Sentinel API credentials (if using sentinelsat)
 SENTINEL_API_USERNAME = env('SENTINEL_API_USERNAME', default='')
 SENTINEL_API_PASSWORD = env('SENTINEL_API_PASSWORD', default='')
 
