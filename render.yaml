@@ -27,11 +27,11 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
 
-  - type: worker
-    name: satellite-monitoring-worker
+  - type: cron
+    name: satellite-monitoring-cron
     runtime: python
-    plan: free
     buildCommand: pip install -r requirements.txt
+    schedule: "0 */6 * * *"
     startCommand: python continuous_monitoring.py
     envVars:
       - key: DEBUG
