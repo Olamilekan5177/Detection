@@ -12,7 +12,6 @@ services:
         fromDatabase:
           name: oil-spill-db
           property: password
-        sync: false
       - key: ALLOWED_HOSTS
         value: .onrender.com
       - key: DATABASE_URL
@@ -41,7 +40,6 @@ services:
         fromDatabase:
           name: oil-spill-db
           property: password
-        sync: false
       - key: ALLOWED_HOSTS
         value: .onrender.com
       - key: DATABASE_URL
