@@ -28,7 +28,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
 
-  - type: background-worker
+  - type: worker
     name: satellite-monitoring-worker
     runtime: python
     plan: free
